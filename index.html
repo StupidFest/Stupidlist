@@ -1773,15 +1773,6 @@ html,body{min-height:100%}
   background:#04050c;
 }
 #adminMode{display:none}
-#stupidBridge{
-  position:fixed;
-  width:1px;
-  height:1px;
-  left:-100px;
-  top:-100px;
-  opacity:0;
-  pointer-events:none;
-}
 </style>
 
 </head>
@@ -2162,124 +2153,235 @@ html,body{min-height:100%}
 
 
   </div>
-
-  <iframe
-    id="stupidBridge"
-    title="STUPID backend bridge"
-  ></iframe>
-
-  
 <script>
-const STUPID_APP_URL = 'https://script.google.com/macros/s/AKfycby1PbmpjNcXOCx9ZVZBTxbs-AS1xmU5s9yOGfw8cRww-g2TbkdXcrQa0o9Wn30yl9dJ2w/exec';
-const STUPID_BRIDGE_URL = STUPID_APP_URL + '?page=bridge';
+const STUPID_APP_URL =
+  'https://script.google.com/macros/s/AKfycbwLjAN011jGdk3bUqwbB2KYk927Z1djuD8AB4bK3Q4rFqi59IBYPM4-R7zjQRse5hlapA/exec';
 
-(function installAppsScriptBridge() {
-  const frame = document.getElementById('stupidBridge');
+/*
+  RPC por FORM POST.
+  Funciona mesmo quando o Apps Script redireciona a resposta para
+  googleusercontent.com, porque cada chamada tem seu próprio iframe.
+*/
+(function installAppsScriptRpc() {
   const pending = new Map();
-  const queue = [];
-  let ready = false;
   let seq = 0;
 
-  frame.src = STUPID_BRIDGE_URL;
-
   window.addEventListener('message', event => {
-    if (event.source !== frame.contentWindow) return;
+    const data = event && event.data;
 
-    const data = event.data || {};
-
-    if (data.type === 'STUPID_RPC_READY') {
-      ready = true;
-
-      while (queue.length) {
-        frame.contentWindow.postMessage(
-          queue.shift(),
-          '*'
-        );
-      }
-
+    if (
+      !data ||
+      data.type !== 'STUPID_RPC_RESPONSE'
+    ) {
       return;
     }
 
-    if (data.type !== 'STUPID_RPC_RESPONSE') return;
-
-    const job = pending.get(String(data.id || ''));
+    const id = String(data.id || '');
+    const job = pending.get(id);
 
     if (!job) return;
 
-    pending.delete(String(data.id || ''));
+    /*
+      Confere se a mensagem veio exatamente do iframe
+      criado para aquela requisição.
+    */
+    if (
+      job.iframe &&
+      event.source !== job.iframe.contentWindow
+    ) {
+      return;
+    }
+
+    pending.delete(id);
+    clearTimeout(job.timer);
+
+    try {
+      job.form.remove();
+      job.iframe.remove();
+    } catch (_) {}
 
     if (data.ok) {
       job.resolve(data.result);
     } else {
-      job.reject(new Error(data.error || 'Erro.'));
+      job.reject(
+        new Error(
+          data.error ||
+          'Erro de conexão com o servidor.'
+        )
+      );
     }
   });
 
   function rpc(action, args) {
     return new Promise((resolve, reject) => {
-      const id = String(++seq) + '-' + Date.now();
+      const id =
+        'rpc-' +
+        Date.now() +
+        '-' +
+        (++seq);
+
+      const iframe =
+        document.createElement('iframe');
+
+      iframe.name =
+        'stupid_rpc_frame_' +
+        id.replace(/[^a-z0-9_-]/gi, '');
+
+      iframe.style.position = 'fixed';
+      iframe.style.width = '1px';
+      iframe.style.height = '1px';
+      iframe.style.left = '-10000px';
+      iframe.style.top = '-10000px';
+      iframe.style.opacity = '0';
+      iframe.setAttribute(
+        'aria-hidden',
+        'true'
+      );
+
+      const form =
+        document.createElement('form');
+
+      form.method = 'POST';
+      form.action = STUPID_APP_URL;
+      form.target = iframe.name;
+      form.style.display = 'none';
+
+      const fields = {
+        requestId: id,
+        action: String(action || ''),
+        args: JSON.stringify(
+          Array.isArray(args)
+            ? args
+            : []
+        )
+      };
+
+      Object.entries(fields)
+        .forEach(([name, value]) => {
+          const input =
+            document.createElement('input');
+
+          input.type = 'hidden';
+          input.name = name;
+          input.value = value;
+
+          form.appendChild(input);
+        });
+
+      document.body.appendChild(iframe);
+      document.body.appendChild(form);
+
+      const timer = setTimeout(() => {
+        if (!pending.has(id)) return;
+
+        pending.delete(id);
+
+        try {
+          form.remove();
+          iframe.remove();
+        } catch (_) {}
+
+        reject(
+          new Error(
+            'O servidor não respondeu. Atualize o Apps Script para a nova versão e tente novamente.'
+          )
+        );
+      }, 20000);
 
       pending.set(id, {
         resolve,
-        reject
+        reject,
+        iframe,
+        form,
+        timer
       });
 
-      const message = {
-        type:'STUPID_RPC',
-        id,
-        action,
-        args
-      };
+      /*
+        Pequeno atraso garante que o iframe com esse NAME
+        já existe antes do submit.
+      */
+      setTimeout(() => {
+        try {
+          form.submit();
+        } catch (err) {
+          if (!pending.has(id)) return;
 
-      if (ready) {
-        frame.contentWindow.postMessage(message, '*');
-      } else {
-        queue.push(message);
+          pending.delete(id);
+          clearTimeout(timer);
 
-        setTimeout(() => {
-          if (pending.has(id) && !ready) {
-            pending.delete(id);
-            reject(
-              new Error(
-                'A conexão com o servidor ainda não ficou pronta. Tente novamente.'
-              )
-            );
-          }
-        }, 12000);
-      }
+          try {
+            form.remove();
+            iframe.remove();
+          } catch (_) {}
+
+          reject(
+            new Error(
+              'Não consegui enviar a requisição ao servidor.'
+            )
+          );
+        }
+      }, 20);
     });
   }
 
-  function makeRunner(successHandler, failureHandler) {
+  function makeRunner(
+    successHandler,
+    failureHandler
+  ) {
     return new Proxy({}, {
       get(target, prop) {
-        if (prop === 'withSuccessHandler') {
+        if (
+          prop ===
+          'withSuccessHandler'
+        ) {
           return handler =>
-            makeRunner(handler, failureHandler);
+            makeRunner(
+              handler,
+              failureHandler
+            );
         }
 
-        if (prop === 'withFailureHandler') {
+        if (
+          prop ===
+          'withFailureHandler'
+        ) {
           return handler =>
-            makeRunner(successHandler, handler);
+            makeRunner(
+              successHandler,
+              handler
+            );
         }
 
         return (...args) => {
-          rpc(String(prop), args)
+          rpc(
+            String(prop),
+            args
+          )
             .then(result => {
-              if (successHandler) successHandler(result);
+              if (successHandler) {
+                successHandler(result);
+              }
             })
             .catch(err => {
-              if (failureHandler) failureHandler(err);
-              else console.error(err);
+              if (failureHandler) {
+                failureHandler(err);
+              } else {
+                console.error(err);
+              }
             });
         };
       }
     });
   }
 
-  window.google = window.google || {};
-  window.google.script = window.google.script || {};
-  window.google.script.run = makeRunner(null, null);
+  window.google =
+    window.google || {};
+
+  window.google.script =
+    window.google.script || {};
+
+  window.google.script.run =
+    makeRunner(null, null);
 })();
 </script>
 
@@ -2297,7 +2399,7 @@ const STUPID_BRIDGE_URL = STUPID_APP_URL + '?page=bridge';
   }
 
   if (page === 'checkin') {
-    const target = new URL('https://script.google.com/macros/s/AKfycbwM3SG_bqVFaxJp0Rpo-QxBwlTDfT-u2gpnuZOxAUWvD-lcCsXx2a29vllsTnmJrGWd/exec');
+    const target = new URL('https://script.google.com/macros/s/AKfycbwLjAN011jGdk3bUqwbB2KYk927Z1djuD8AB4bK3Q4rFqi59IBYPM4-R7zjQRse5hlapA/exec');
     target.searchParams.set('page','checkin');
     location.replace(target.toString());
     return;
@@ -2307,7 +2409,7 @@ const STUPID_BRIDGE_URL = STUPID_APP_URL + '?page=bridge';
   document.getElementById('publicMode').style.display = 'block';
   document.body.style.overflow = 'hidden';
 
-  const target = new URL('https://script.google.com/macros/s/AKfycbwM3SG_bqVFaxJp0Rpo-QxBwlTDfT-u2gpnuZOxAUWvD-lcCsXx2a29vllsTnmJrGWd/exec');
+  const target = new URL('https://script.google.com/macros/s/AKfycbwLjAN011jGdk3bUqwbB2KYk927Z1djuD8AB4bK3Q4rFqi59IBYPM4-R7zjQRse5hlapA/exec');
   const list = url.searchParams.get('list');
 
   if (list) {
@@ -2385,6 +2487,11 @@ $('loginForm').onsubmit = e => {
         (err && err.message) ||
         'PIN incorreto.',
         true
+      );
+
+      console.error(
+        'STUPID ADMIN LOGIN:',
+        err
       );
     })
     .adminLogin($('pin').value);
