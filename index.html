@@ -7,39 +7,152 @@
   <title>STUPID LIST</title>
   <style>
     *{box-sizing:border-box}
-    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#04050c}
-    body{font-family:Arial,sans-serif;color:white}
+    html,body{margin:0;width:100%;min-height:100%;background:#04050c;color:#fff;font-family:Arial,sans-serif}
+    body{overflow:hidden}
     #app{width:100%;height:100dvh;border:0;display:block;background:#04050c}
-    #setup{
-      display:none;min-height:100vh;padding:30px 22px;background:#04050c;
-      color:#fff;line-height:1.5
-    }
-    #setup h1{margin:0 0 12px}
+    #setup{display:none;min-height:100vh;padding:30px 22px;background:#04050c;color:#fff;line-height:1.5}
     #setup code{color:#c5ff45;word-break:break-all}
+
+    #voiceScreen{
+      display:none;
+      min-height:100dvh;
+      padding:24px 18px;
+      background:
+        radial-gradient(circle at 50% 0%,rgba(137,29,255,.25),transparent 34%),
+        radial-gradient(circle at 88% 16%,rgba(255,62,207,.18),transparent 23%),
+        #04050c;
+      overflow:auto;
+    }
+    .voice-card{
+      width:min(100%,480px);
+      margin:8vh auto 0;
+      padding:24px 20px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:24px;
+      background:linear-gradient(180deg,rgba(10,12,22,.94),rgba(5,7,13,.97));
+      box-shadow:0 20px 60px rgba(0,0,0,.62);
+      text-align:center;
+    }
+    .voice-brand{
+      font-size:13px;
+      font-weight:800;
+      letter-spacing:.18em;
+      color:#c5ff45;
+    }
+    .voice-title{
+      margin:13px 0 5px;
+      font-size:34px;
+      font-weight:900;
+      font-style:italic;
+    }
+    .voice-copy{
+      margin:0 auto 18px;
+      max-width:330px;
+      color:#d2cedb;
+      font-size:16px;
+      line-height:1.45;
+    }
+    #micButton{
+      width:132px;
+      height:132px;
+      border-radius:50%;
+      border:1px solid rgba(255,67,212,.55);
+      background:radial-gradient(circle,#5b126e,#16051f 72%);
+      color:white;
+      font-size:52px;
+      box-shadow:0 0 22px rgba(255,67,212,.16);
+    }
+    #micButton.listening{
+      animation:micPulse .7s ease-in-out infinite alternate;
+      border-color:#c5ff45;
+      box-shadow:0 0 0 6px rgba(197,255,69,.08),0 0 24px rgba(255,67,212,.18);
+    }
+    @keyframes micPulse{to{transform:scale(1.05)}}
+    #voiceStatus{
+      min-height:48px;
+      margin-top:18px;
+      color:#fff;
+      font-size:17px;
+      font-weight:700;
+      line-height:1.4;
+    }
+    #heard{
+      display:none;
+      margin-top:15px;
+      padding:14px;
+      border:1px solid rgba(197,255,69,.30);
+      border-radius:14px;
+      background:rgba(25,45,8,.34);
+      font-size:20px;
+      font-weight:800;
+    }
+    .voice-help{
+      margin-top:18px;
+      color:#a9a5b2;
+      font-size:13px;
+      line-height:1.45;
+    }
+    .voice-btn{
+      width:100%;
+      min-height:54px;
+      margin-top:12px;
+      border:0;
+      border-radius:13px;
+      background:linear-gradient(180deg,#d4ff65,#a6e83c);
+      color:#071003;
+      font-size:18px;
+      font-weight:900;
+    }
   </style>
 </head>
 <body>
 
 <div id="setup">
-  <h1>STUPID LIST</h1>
-  <p>Falta configurar a URL do Google Apps Script.</p>
-  <p>Abra este <code>index.html</code> e troque o valor de <code>APP_SCRIPT_URL</code>.</p>
+  <h2>STUPID LIST</h2>
+  <p>Falta configurar a URL do Apps Script.</p>
 </div>
 
-<iframe
-  id="app"
-  title="STUPID LIST"
-  allow="clipboard-write; web-share"
-></iframe>
+<div id="voiceScreen">
+  <div class="voice-card">
+    <div class="voice-brand">STUPID • BUSCA POR VOZ</div>
+    <h1 class="voice-title">FALE O NOME 🎙️</h1>
+    <p class="voice-copy">
+      Toque no microfone, permita o acesso e fale o nome da pessoa.
+      O nome volta automaticamente para o Admin.
+    </p>
+
+    <button id="micButton" type="button" aria-label="Ativar microfone">🎙️</button>
+    <div id="voiceStatus">Toque no microfone para começar.</div>
+    <div id="heard"></div>
+
+    <button id="retryButton" class="voice-btn" type="button" style="display:none">
+      TENTAR NOVAMENTE
+    </button>
+
+    <div class="voice-help">
+      Se o Chrome já tiver bloqueado o microfone:
+      Configurações do site → Microfone → Permitir para
+      <b>stupidfest.github.io</b>.
+    </div>
+  </div>
+</div>
+
+<iframe id="app" title="STUPID LIST" allow="clipboard-write"></iframe>
 
 <script>
-/*
-  COLE A URL /exec DO SEU GOOGLE APPS SCRIPT AQUI.
-  Você só precisa alterar esta linha UMA VEZ.
-*/
-const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLJJn8MV91PqAr_9ycI3k5WbUdQR9Td_bOr1syXn75w5IH6iLMCZvFce6ep29YOWPmxw/exec';
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyyMEee5AH2EKHcrjleg99qGFeUc1k80EdA8PXSBS7KZw2U2nFY0_LWJlDx6Xhxj-2BzQ/exec';
 
 (function boot(){
+  const current = new URL(location.href);
+  const voiceMode = current.searchParams.get('voice') === '1';
+
+  if (voiceMode) {
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('voiceScreen').style.display = 'block';
+    startVoiceHelper();
+    return;
+  }
+
   const clean = String(APP_SCRIPT_URL || '').trim();
 
   if (!clean || clean.includes('COLE_AQUI')) {
@@ -48,20 +161,15 @@ const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLJJn8MV91PqAr_
     return;
   }
 
-  const current = new URL(location.href);
   const target = new URL(clean);
-
   const page = String(current.searchParams.get('page') || '').toLowerCase();
 
-  // Admin e check-in abrem direto no Apps Script.
-  // O PIN e a autenticação nunca ficam no GitHub.
   if (page === 'admin' || page === 'checkin') {
     target.searchParams.set('page', page);
     location.replace(target.toString());
     return;
   }
 
-  // Lista geral ou lista/drop específica.
   const list = current.searchParams.get('list');
 
   if (list) {
@@ -70,6 +178,103 @@ const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwLJJn8MV91PqAr_
 
   document.getElementById('app').src = target.toString();
 })();
+
+function startVoiceHelper(){
+  const micButton = document.getElementById('micButton');
+  const retryButton = document.getElementById('retryButton');
+  const status = document.getElementById('voiceStatus');
+  const heard = document.getElementById('heard');
+
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SR) {
+    micButton.disabled = true;
+    status.textContent =
+      'Este navegador não oferece reconhecimento de voz. Abra esta página no Google Chrome atualizado.';
+    retryButton.style.display = 'none';
+    return;
+  }
+
+  let recognition = null;
+  let active = false;
+
+  function begin(){
+    if (active) return;
+
+    recognition = new SR();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 3;
+
+    recognition.onstart = () => {
+      active = true;
+      micButton.classList.add('listening');
+      status.textContent = '🎙️ OUVINDO... FALE O NOME';
+      retryButton.style.display = 'none';
+      heard.style.display = 'none';
+    };
+
+    recognition.onresult = event => {
+      const text = String(event.results[0][0].transcript || '').trim();
+
+      if (!text) return;
+
+      heard.textContent = text;
+      heard.style.display = 'block';
+      status.textContent = 'Nome reconhecido. Voltando para o Admin...';
+
+      try {
+        if (window.opener && !window.opener.closed) {
+          window.opener.postMessage({
+            type:'STUPID_VOICE_RESULT',
+            text:text
+          }, '*');
+
+          setTimeout(() => window.close(), 550);
+          return;
+        }
+      } catch (_) {}
+
+      status.textContent =
+        'Ouvi "' + text + '". Volte ao Admin e digite esse nome.';
+    };
+
+    recognition.onerror = event => {
+      let message = 'Não consegui usar o microfone.';
+
+      if (event.error === 'not-allowed') {
+        message =
+          'O microfone está bloqueado. Permita o microfone para stupidfest.github.io nas configurações do Chrome.';
+      } else if (event.error === 'no-speech') {
+        message =
+          'Não ouvi nenhum nome. Toque em tentar novamente.';
+      } else if (event.error === 'network') {
+        message =
+          'Falha de rede no reconhecimento de voz. Tente novamente.';
+      }
+
+      status.textContent = message;
+      retryButton.style.display = 'block';
+    };
+
+    recognition.onend = () => {
+      active = false;
+      micButton.classList.remove('listening');
+    };
+
+    try {
+      recognition.start();
+    } catch (err) {
+      status.textContent =
+        'Não consegui iniciar o microfone. Toque novamente.';
+      retryButton.style.display = 'block';
+    }
+  }
+
+  micButton.onclick = begin;
+  retryButton.onclick = begin;
+}
 </script>
 </body>
 </html>
