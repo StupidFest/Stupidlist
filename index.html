@@ -17,8 +17,153 @@
     #setup h1{margin:0 0 12px}
     #setup code{color:#c5ff45;word-break:break-all}
   </style>
+
+<style id="voice-helper-css">
+#voiceScreen{
+  display:none;
+  min-height:100dvh;
+  padding:22px 16px;
+  overflow:auto;
+  background:
+    radial-gradient(circle at 50% 0%,rgba(126,30,255,.23),transparent 34%),
+    radial-gradient(circle at 90% 20%,rgba(255,58,205,.16),transparent 25%),
+    #04050c;
+}
+.voice-card{
+  width:min(100%,480px);
+  margin:7vh auto 0;
+  padding:25px 20px;
+  border:1px solid rgba(255,255,255,.10);
+  border-radius:24px;
+  background:linear-gradient(180deg,rgba(11,13,23,.97),rgba(5,7,13,.98));
+  box-shadow:0 24px 65px rgba(0,0,0,.65);
+  text-align:center;
+}
+.voice-kicker{
+  color:#c5ff45;
+  font-size:13px;
+  font-weight:900;
+  letter-spacing:.16em;
+}
+.voice-title{
+  margin:12px 0 6px;
+  font-size:38px;
+  line-height:.95;
+  font-weight:1000;
+  font-style:italic;
+}
+.voice-copy{
+  margin:0 auto 20px;
+  max-width:340px;
+  color:#d3cfdb;
+  font-size:16px;
+  line-height:1.45;
+}
+#voiceMic{
+  width:138px;
+  height:138px;
+  border-radius:50%;
+  border:1px solid rgba(255,67,212,.56);
+  background:radial-gradient(circle,#68147c,#190520 72%);
+  color:white;
+  font-size:55px;
+  box-shadow:0 0 26px rgba(255,67,212,.17);
+}
+#voiceMic.listening{
+  border-color:#c5ff45;
+  animation:voicePulse .75s ease-in-out infinite alternate;
+  box-shadow:
+    0 0 0 7px rgba(197,255,69,.08),
+    0 0 28px rgba(255,67,212,.20);
+}
+@keyframes voicePulse{
+  to{transform:scale(1.055)}
+}
+#voiceStatus{
+  min-height:54px;
+  margin-top:18px;
+  font-size:17px;
+  font-weight:800;
+  line-height:1.4;
+}
+#voiceHeard{
+  display:none;
+  margin-top:14px;
+  padding:15px;
+  border:1px solid rgba(197,255,69,.33);
+  border-radius:15px;
+  background:rgba(29,51,10,.35);
+  font-size:23px;
+  font-weight:900;
+}
+#voiceRetry{
+  display:none;
+  width:100%;
+  min-height:58px;
+  margin-top:12px;
+  border:0;
+  border-radius:14px;
+  background:linear-gradient(180deg,#d4ff65,#a8e93e);
+  color:#071003;
+  font-size:19px;
+  font-weight:1000;
+}
+.voice-help{
+  margin-top:18px;
+  color:#aaa5b3;
+  font-size:13px;
+  line-height:1.5;
+}
+</style>
+
 </head>
 <body>
+
+
+<div id="voiceScreen">
+  <div class="voice-card">
+    <div class="voice-kicker">
+      STUPID • BUSCA POR VOZ
+    </div>
+
+    <h1 class="voice-title">
+      FALE O NOME 🎙️
+    </h1>
+
+    <p class="voice-copy">
+      Toque no microfone, escolha PERMITIR e fale o nome da pessoa.
+    </p>
+
+    <button
+      id="voiceMic"
+      type="button"
+      aria-label="Ativar microfone"
+    >
+      🎙️
+    </button>
+
+    <div id="voiceStatus">
+      Toque no microfone para começar.
+    </div>
+
+    <div id="voiceHeard"></div>
+
+    <button
+      id="voiceRetry"
+      type="button"
+    >
+      TENTAR NOVAMENTE
+    </button>
+
+    <div class="voice-help">
+      Se estiver bloqueado:
+      Chrome → Configurações do site →
+      Microfone → permitir para
+      <b>stupidfest.github.io</b>.
+    </div>
+  </div>
+</div>
+
 
 <div id="setup">
   <h1>STUPID LIST</h1>
@@ -33,13 +178,22 @@
 ></iframe>
 
 <script>
-/*
-  COLE A URL /exec DO SEU GOOGLE APPS SCRIPT AQUI.
-  Você só precisa alterar esta linha UMA VEZ.
-*/
 const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1PbmpjNcXOCx9ZVZBTxbs-AS1xmU5s9yOGfw8cRww-g2TbkdXcrQa0o9Wn30yl9dJ2w/exec';
 
 (function boot(){
+  const current = new URL(location.href);
+  const voiceMode =
+    current.searchParams.get('voice') === '1';
+
+  if (voiceMode) {
+    document.getElementById('app').style.display = 'none';
+    document.getElementById('setup').style.display = 'none';
+    document.getElementById('voiceScreen').style.display = 'block';
+    document.body.style.overflow = 'auto';
+    setupVoiceHelper();
+    return;
+  }
+
   const clean = String(APP_SCRIPT_URL || '').trim();
 
   if (!clean || clean.includes('COLE_AQUI')) {
@@ -48,28 +202,184 @@ const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby1PbmpjNcXOCx9Z
     return;
   }
 
-  const current = new URL(location.href);
   const target = new URL(clean);
+  const page =
+    String(
+      current.searchParams.get('page') || ''
+    ).toLowerCase();
 
-  const page = String(current.searchParams.get('page') || '').toLowerCase();
-
-  // Admin e check-in abrem direto no Apps Script.
-  // O PIN e a autenticação nunca ficam no GitHub.
-  if (page === 'admin' || page === 'checkin') {
+  if (
+    page === 'admin' ||
+    page === 'checkin'
+  ) {
     target.searchParams.set('page', page);
     location.replace(target.toString());
     return;
   }
 
-  // Lista geral ou lista/drop específica.
-  const list = current.searchParams.get('list');
+  const list =
+    current.searchParams.get('list');
 
   if (list) {
     target.searchParams.set('list', list);
   }
 
-  document.getElementById('app').src = target.toString();
+  document.getElementById('app').src =
+    target.toString();
 })();
+
+function setupVoiceHelper(){
+  const mic =
+    document.getElementById('voiceMic');
+
+  const retry =
+    document.getElementById('voiceRetry');
+
+  const status =
+    document.getElementById('voiceStatus');
+
+  const heard =
+    document.getElementById('voiceHeard');
+
+  const SR =
+    window.SpeechRecognition ||
+    window.webkitSpeechRecognition;
+
+  if (!SR) {
+    mic.disabled = true;
+    status.textContent =
+      'Este navegador não oferece reconhecimento de voz. Use o Google Chrome atualizado.';
+    return;
+  }
+
+  let recognition = null;
+  let active = false;
+
+  async function askMicPermission(){
+    if (
+      navigator.mediaDevices &&
+      navigator.mediaDevices.getUserMedia
+    ) {
+      const stream =
+        await navigator.mediaDevices.getUserMedia({
+          audio:true
+        });
+
+      stream.getTracks().forEach(track =>
+        track.stop()
+      );
+    }
+  }
+
+  async function start(){
+    if (active) return;
+
+    retry.style.display = 'none';
+    heard.style.display = 'none';
+    status.textContent =
+      'Solicitando acesso ao microfone...';
+
+    try {
+      await askMicPermission();
+    } catch (err) {
+      status.textContent =
+        'MICROFONE BLOQUEADO. Permita o microfone para stupidfest.github.io e tente novamente.';
+      retry.style.display = 'block';
+      return;
+    }
+
+    recognition = new SR();
+    recognition.lang = 'pt-BR';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 3;
+
+    recognition.onstart = () => {
+      active = true;
+      mic.classList.add('listening');
+      status.textContent =
+        '🎙️ OUVINDO... FALE O NOME';
+    };
+
+    recognition.onresult = event => {
+      const text =
+        String(
+          event.results[0][0].transcript || ''
+        ).trim();
+
+      if (!text) return;
+
+      heard.textContent = text;
+      heard.style.display = 'block';
+
+      status.textContent =
+        'Nome reconhecido. Voltando para o Admin...';
+
+      try {
+        if (
+          window.opener &&
+          !window.opener.closed
+        ) {
+          window.opener.postMessage(
+            {
+              type:'STUPID_VOICE_RESULT',
+              text:text
+            },
+            '*'
+          );
+
+          setTimeout(() => {
+            window.close();
+          }, 650);
+
+          return;
+        }
+      } catch (_) {}
+
+      status.textContent =
+        'Ouvi "' + text +
+        '". Volte para o Admin.';
+    };
+
+    recognition.onerror = event => {
+      active = false;
+      mic.classList.remove('listening');
+
+      let message =
+        'Não consegui reconhecer a voz.';
+
+      if (event.error === 'not-allowed') {
+        message =
+          'MICROFONE BLOQUEADO. Permita o acesso para stupidfest.github.io.';
+      } else if (event.error === 'no-speech') {
+        message =
+          'Não ouvi nenhum nome. Tente novamente.';
+      } else if (event.error === 'network') {
+        message =
+          'Falha de rede no reconhecimento de voz.';
+      }
+
+      status.textContent = message;
+      retry.style.display = 'block';
+    };
+
+    recognition.onend = () => {
+      active = false;
+      mic.classList.remove('listening');
+    };
+
+    try {
+      recognition.start();
+    } catch (err) {
+      status.textContent =
+        'Não consegui iniciar o microfone. Tente novamente.';
+      retry.style.display = 'block';
+    }
+  }
+
+  mic.onclick = start;
+  retry.onclick = start;
+}
 </script>
 </body>
 </html>
