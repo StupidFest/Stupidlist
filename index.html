@@ -1784,6 +1784,106 @@ body.success-mode .poster{
 }
 </style>
 
+
+<style id="stupid-mobile-performance-fix">
+/* =========================================================
+   MOBILE — PERFORMANCE + PERSONAGEM DENTRO DA TELA
+   Desktop mantém os efeitos.
+   No celular, o fundo fica ESTÁTICO para não travar.
+   ========================================================= */
+
+@media(max-width:600px){
+
+  /* FUNDO COMPLETAMENTE ESTÁTICO */
+  .stage-bg{
+    transform:none !important;
+    animation:none !important;
+    will-change:auto !important;
+    background-position:center top !important;
+  }
+
+  .stage::before,
+  .stage::after,
+  .light,
+  .light.left,
+  .light.right{
+    animation:none !important;
+    transform:none !important;
+    will-change:auto !important;
+  }
+
+  /* remove textura animada/pesada no mobile */
+  .noise{
+    display:none !important;
+  }
+
+  /* evita reflexo passando sem parar nos cards */
+  .card::after{
+    animation:none !important;
+    display:none !important;
+  }
+
+  /* preço sem pulso contínuo no celular */
+  .price,
+  .price.green,
+  .price.pink{
+    animation:none !important;
+  }
+
+  /* logo continua com glow, mas sem ficar recalculando animação */
+  .logo,
+  .logo::before,
+  .logo::after{
+    animation:none !important;
+    will-change:auto !important;
+  }
+
+  /* LIST fica estático no mobile */
+  .script-word{
+    animation:none !important;
+  }
+
+  /* PERSONAGEM / PNG LATERAL:
+     traz para DENTRO da tela e evita corte */
+  .side-neon-overlay{
+    width:205px !important;
+    right:-8px !important;
+    top:-92px !important;
+
+    animation:none !important;
+    transform:none !important;
+    will-change:auto !important;
+  }
+
+  .side-neon-overlay img{
+    width:100% !important;
+    height:auto !important;
+    max-width:100% !important;
+  }
+
+  /* deixa uma folga real para ela não sair da viewport */
+  #formCard{
+    overflow:visible !important;
+  }
+}
+
+@media(max-width:430px){
+  .side-neon-overlay{
+    width:185px !important;
+    right:0 !important;
+    top:-84px !important;
+  }
+}
+
+@media(max-width:360px){
+  .side-neon-overlay{
+    width:168px !important;
+    right:2px !important;
+    top:-78px !important;
+  }
+}
+</style>
+
 </head>
 <body>
 <div class="stage">
