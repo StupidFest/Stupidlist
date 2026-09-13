@@ -1816,12 +1816,26 @@ input[type="number"]:focus{
   </section>
 
   <div class="foot">
-    STUPID LIST • pagamento somente na portaria
+    STUPID LIST • pagamento somente na portaria • GITHUB
   </div>
 </main>
 
 <script>
-const INITIAL_LIST_KEY = <?!= JSON.stringify(initialListKey) ?>;
+const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyQSEuWa8cgrpgjYfQvMemJDCMx5x-gVTAsDgR95-LYtcWgg6WrrqkRbBrskmGe9oHigA/exec';
+
+const CURRENT_URL =
+  new URL(window.location.href);
+
+const PAGE_MODE =
+  String(
+    CURRENT_URL.searchParams.get('page') || ''
+  ).toLowerCase();
+
+const INITIAL_LIST_KEY =
+  String(
+    CURRENT_URL.searchParams.get('list') ||
+    'geral'
+  ).trim() || 'geral';
 
 let cfg = null;
 let currentOpen = null;
@@ -1845,10 +1859,261 @@ function clientKey() {
   return key;
 }
 
-google.script.run
-  .withSuccessHandler(init)
-  .withFailureHandler(fatal)
-  .getPublicConfig(INITIAL_LIST_KEY);
+/*
+  O site público está realmente hospedado no GitHub.
+  Só redirecionamos as áreas privadas para o Apps Script.
+*/
+if (
+  PAGE_MODE === 'admin' ||
+  PAGE_MODE === 'adminmobile'
+) {
+  const adminUrl =
+    new URL(APP_SCRIPT_URL);
+
+  adminUrl.searchParams.set(
+    'page',
+    'adminmobile'
+  );
+
+  window.location.replace(
+    adminUrl.toString()
+  );
+} else if (PAGE_MODE === 'checkin') {
+  const checkinUrl =
+    new URL(APP_SCRIPT_URL);
+
+  checkinUrl.searchParams.set(
+    'page',
+    'checkin'
+  );
+
+  window.location.replace(
+    checkinUrl.toString()
+  );
+} else {
+  apiJsonp(
+    'config',
+    {
+      list:INITIAL_LIST_KEY
+    }
+  )
+    .then(init)
+    .catch(fatal);
+}
+
+/* =========================================================
+   PONTE GITHUB -> APPS SCRIPT
+   ========================================================= */
+
+let apiCounter = 0;
+let pendingJoin = null;
+
+function apiJsonp(api, params) {
+  return new Promise((resolve, reject) => {
+    const callback =
+      '__stupidJsonp' +
+      (++apiCounter) +
+      '_' +
+      Date.now();
+
+    const script =
+      document.createElement('script');
+
+    const timer =
+      setTimeout(() => {
+        cleanup();
+        reject(
+          new Error(
+            'O servidor demorou para responder.'
+          )
+        );
+      }, 15000);
+
+    function cleanup() {
+      clearTimeout(timer);
+
+      try {
+        delete window[callback];
+      } catch (_) {
+        window[callback] = undefined;
+      }
+
+      script.remove();
+    }
+
+    window[callback] = data => {
+      cleanup();
+      resolve(data);
+    };
+
+    const url =
+      new URL(APP_SCRIPT_URL);
+
+    url.searchParams.set(
+      'api',
+      api
+    );
+
+    url.searchParams.set(
+      'callback',
+      callback
+    );
+
+    Object.entries(
+      params || {}
+    ).forEach(([key, value]) => {
+      if (
+        value !== null &&
+        value !== undefined
+      ) {
+        url.searchParams.set(
+          key,
+          String(value)
+        );
+      }
+    });
+
+    script.onerror = () => {
+      cleanup();
+
+      reject(
+        new Error(
+          'Não foi possível conectar ao servidor.'
+        )
+      );
+    };
+
+    script.src = url.toString();
+    document.head.appendChild(script);
+  });
+}
+
+function submitNamesToBackend(payload) {
+  return new Promise((resolve, reject) => {
+    if (pendingJoin) {
+      reject(
+        new Error(
+          'Já existe um envio em andamento.'
+        )
+      );
+      return;
+    }
+
+    const iframeName =
+      'stupidJoinFrame_' +
+      Date.now();
+
+    const iframe =
+      document.createElement('iframe');
+
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+
+    document.body.appendChild(iframe);
+
+    const form =
+      document.createElement('form');
+
+    form.method = 'POST';
+    form.action = APP_SCRIPT_URL;
+    form.target = iframeName;
+    form.style.display = 'none';
+
+    const values = {
+      api:'join',
+      origin:window.location.origin,
+      listKey:
+        payload.listKey || 'geral',
+      clientKey:
+        payload.clientKey || '',
+      namesJson:
+        JSON.stringify(
+          payload.names || []
+        )
+    };
+
+    Object.entries(values)
+      .forEach(([key, value]) => {
+        const input =
+          document.createElement('input');
+
+        input.type = 'hidden';
+        input.name = key;
+        input.value = String(value);
+
+        form.appendChild(input);
+      });
+
+    document.body.appendChild(form);
+
+    const timer =
+      setTimeout(() => {
+        cleanup();
+
+        reject(
+          new Error(
+            'O servidor demorou para confirmar os nomes.'
+          )
+        );
+      }, 20000);
+
+    function cleanup() {
+      clearTimeout(timer);
+
+      window.removeEventListener(
+        'message',
+        onMessage
+      );
+
+      form.remove();
+
+      setTimeout(
+        () => iframe.remove(),
+        300
+      );
+
+      pendingJoin = null;
+    }
+
+    function onMessage(event) {
+      if (
+        event.origin !==
+        'https://script.google.com' &&
+        !event.origin.endsWith(
+          '.googleusercontent.com'
+        )
+      ) {
+        return;
+      }
+
+      const data =
+        event.data || {};
+
+      if (
+        data.type !==
+        'STUPID_JOIN_RESULT'
+      ) {
+        return;
+      }
+
+      cleanup();
+      resolve(data);
+    }
+
+    pendingJoin = {
+      iframe,
+      form
+    };
+
+    window.addEventListener(
+      'message',
+      onMessage
+    );
+
+    form.submit();
+  });
+}
+
 
 function init(config) {
   if (!config || !config.ok) {
@@ -1895,22 +2160,29 @@ function init(config) {
 }
 
 function refreshLiveState() {
-  google.script.run
-    .withSuccessHandler(res => {
+  apiJsonp(
+    'state',
+    {
+      list:INITIAL_LIST_KEY
+    }
+  )
+    .then(res => {
       if (!res || !res.listState) return;
 
       if (
         currentOpen !== null &&
-        currentOpen !== !!res.listState.open
+        currentOpen !==
+          !!res.listState.open
       ) {
         location.reload();
         return;
       }
 
-      applyState(res.listState);
+      applyState(
+        res.listState
+      );
     })
-    .withFailureHandler(() => {})
-    .getListLiveState(INITIAL_LIST_KEY);
+    .catch(() => {});
 }
 
 function applyState(state) {
@@ -2040,11 +2312,16 @@ $('joinForm').onsubmit = e => {
 
   setStatus('Colocando os nomes na STUPID LIST...');
 
-  google.script.run
-    .withSuccessHandler(showSuccess)
-    .withFailureHandler(err => {
+  submitNamesToBackend({
+    listKey:INITIAL_LIST_KEY,
+    names,
+    clientKey:clientKey()
+  })
+    .then(showSuccess)
+    .catch(err => {
       $('submitBtn').disabled = false;
-      $('submitBtn').textContent = 'CONFIRMAR NOMES ⚡';
+      $('submitBtn').textContent =
+        'CONFIRMAR NOMES ⚡';
 
       setStatus(
         (err && err.message) ||
@@ -2053,11 +2330,6 @@ $('joinForm').onsubmit = e => {
       );
 
       refreshLiveState();
-    })
-    .joinList({
-      listKey: INITIAL_LIST_KEY,
-      names,
-      clientKey: clientKey()
     });
 };
 
