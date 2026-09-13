@@ -1822,7 +1822,7 @@ input[type="number"]:focus{
 
 <script>
 const APP_URL =
-  'https://script.google.com/macros/s/AKfycbwyrMU-FRG6RdG-ieK3GDQSZdZY6CChPh3SApwASWmffgRIALDuXe0oPBXOXcjJucJwhg/exec';
+  'https://script.google.com/macros/s/AKfycbz8Ihup-hQOS3-ICGX7U1kwigYYCM1OkbAEsF0S9-RpTj_Iqyy-u8sBMidLPO1YsMS26w/exec';
 
 const CURRENT_URL =
   new URL(window.location.href);
@@ -1861,7 +1861,6 @@ function clientKey() {
    ========================================================= */
 
 let stupidJsonpCounter = 0;
-let stupidJoinPending = false;
 
 function githubGet(bridge, params) {
   return new Promise((resolve, reject) => {
@@ -1944,115 +1943,30 @@ function githubGet(bridge, params) {
 }
 
 function githubJoin(payload) {
-  return new Promise((resolve, reject) => {
-    if (stupidJoinPending) {
-      reject(
-        new Error(
-          'Aguarde o envio atual terminar.'
-        )
-      );
-      return;
-    }
+  /*
+    O GET/JSONP já está funcionando para:
+    - valores
+    - lista aberta/fechada
+    - listas especiais / DROP
 
-    stupidJoinPending = true;
-
-    const frameName =
-      'stupidJoinFrame_' +
-      Date.now();
-
-    const frame =
-      document.createElement('iframe');
-
-    frame.name = frameName;
-    frame.style.display = 'none';
-
-    document.body.appendChild(frame);
-
-    const form =
-      document.createElement('form');
-
-    form.method = 'POST';
-    form.action = APP_URL;
-    form.target = frameName;
-    form.style.display = 'none';
-
-    const fields = {
-      bridge:'join',
+    Então o envio agora usa o MESMO canal.
+    Não existe mais iframe/POST aguardando postMessage.
+  */
+  return githubGet(
+    'join',
+    {
       listKey:
         payload.listKey || 'geral',
+
       clientKey:
         payload.clientKey || '',
+
       namesJson:
         JSON.stringify(
           payload.names || []
         )
-    };
-
-    Object.entries(fields)
-      .forEach(([name, value]) => {
-        const input =
-          document.createElement('input');
-
-        input.type = 'hidden';
-        input.name = name;
-        input.value = String(value);
-
-        form.appendChild(input);
-      });
-
-    document.body.appendChild(form);
-
-    const timer =
-      setTimeout(() => {
-        cleanup();
-
-        reject(
-          new Error(
-            'O servidor demorou para confirmar os nomes.'
-          )
-        );
-      }, 20000);
-
-    function cleanup() {
-      clearTimeout(timer);
-
-      window.removeEventListener(
-        'message',
-        onMessage
-      );
-
-      form.remove();
-
-      setTimeout(
-        () => frame.remove(),
-        300
-      );
-
-      stupidJoinPending = false;
     }
-
-    function onMessage(event) {
-      const data =
-        event.data || {};
-
-      if (
-        data.type !==
-        'STUPID_JOIN_RESULT'
-      ) {
-        return;
-      }
-
-      cleanup();
-      resolve(data);
-    }
-
-    window.addEventListener(
-      'message',
-      onMessage
-    );
-
-    form.submit();
-  });
+  );
 }
 
 githubGet(
