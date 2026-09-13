@@ -1816,20 +1816,16 @@ input[type="number"]:focus{
   </section>
 
   <div class="foot">
-    STUPID LIST • pagamento somente na portaria • GITHUB
+    STUPID LIST • pagamento somente na portaria
   </div>
 </main>
 
 <script>
-const APP_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyQSEuWa8cgrpgjYfQvMemJDCMx5x-gVTAsDgR95-LYtcWgg6WrrqkRbBrskmGe9oHigA/exec';
+const APP_URL =
+  'https://script.google.com/macros/s/AKfycbwyrMU-FRG6RdG-ieK3GDQSZdZY6CChPh3SApwASWmffgRIALDuXe0oPBXOXcjJucJwhg/exec';
 
 const CURRENT_URL =
   new URL(window.location.href);
-
-const PAGE_MODE =
-  String(
-    CURRENT_URL.searchParams.get('page') || ''
-  ).toLowerCase();
 
 const INITIAL_LIST_KEY =
   String(
@@ -1859,18 +1855,19 @@ function clientKey() {
   return key;
 }
 
+
 /* =========================================================
-   PONTE GITHUB -> APPS SCRIPT
+   CONEXÃO GITHUB -> APP URL -> CODE.GS -> PLANILHA
    ========================================================= */
 
-let apiCounter = 0;
-let pendingJoin = null;
+let stupidJsonpCounter = 0;
+let stupidJoinPending = false;
 
-function apiJsonp(api, params) {
+function githubGet(bridge, params) {
   return new Promise((resolve, reject) => {
     const callback =
-      '__stupidJsonp' +
-      (++apiCounter) +
+      '__stupidCb_' +
+      (++stupidJsonpCounter) +
       '_' +
       Date.now();
 
@@ -1882,7 +1879,7 @@ function apiJsonp(api, params) {
         cleanup();
         reject(
           new Error(
-            'O servidor demorou para responder.'
+            'Não foi possível se conectar ao servidor.'
           )
         );
       }, 15000);
@@ -1905,11 +1902,11 @@ function apiJsonp(api, params) {
     };
 
     const url =
-      new URL(APP_SCRIPT_URL);
+      new URL(APP_URL);
 
     url.searchParams.set(
-      'api',
-      api
+      'bridge',
+      bridge
     );
 
     url.searchParams.set(
@@ -1936,7 +1933,7 @@ function apiJsonp(api, params) {
 
       reject(
         new Error(
-          'Não foi possível conectar ao servidor.'
+          'Não foi possível se conectar ao servidor.'
         )
       );
     };
@@ -1946,40 +1943,41 @@ function apiJsonp(api, params) {
   });
 }
 
-function submitNamesToBackend(payload) {
+function githubJoin(payload) {
   return new Promise((resolve, reject) => {
-    if (pendingJoin) {
+    if (stupidJoinPending) {
       reject(
         new Error(
-          'Já existe um envio em andamento.'
+          'Aguarde o envio atual terminar.'
         )
       );
       return;
     }
 
-    const iframeName =
+    stupidJoinPending = true;
+
+    const frameName =
       'stupidJoinFrame_' +
       Date.now();
 
-    const iframe =
+    const frame =
       document.createElement('iframe');
 
-    iframe.name = iframeName;
-    iframe.style.display = 'none';
+    frame.name = frameName;
+    frame.style.display = 'none';
 
-    document.body.appendChild(iframe);
+    document.body.appendChild(frame);
 
     const form =
       document.createElement('form');
 
     form.method = 'POST';
-    form.action = APP_SCRIPT_URL;
-    form.target = iframeName;
+    form.action = APP_URL;
+    form.target = frameName;
     form.style.display = 'none';
 
-    const values = {
-      api:'join',
-      origin:window.location.origin,
+    const fields = {
+      bridge:'join',
       listKey:
         payload.listKey || 'geral',
       clientKey:
@@ -1990,13 +1988,13 @@ function submitNamesToBackend(payload) {
         )
     };
 
-    Object.entries(values)
-      .forEach(([key, value]) => {
+    Object.entries(fields)
+      .forEach(([name, value]) => {
         const input =
           document.createElement('input');
 
         input.type = 'hidden';
-        input.name = key;
+        input.name = name;
         input.value = String(value);
 
         form.appendChild(input);
@@ -2026,24 +2024,14 @@ function submitNamesToBackend(payload) {
       form.remove();
 
       setTimeout(
-        () => iframe.remove(),
+        () => frame.remove(),
         300
       );
 
-      pendingJoin = null;
+      stupidJoinPending = false;
     }
 
     function onMessage(event) {
-      if (
-        event.origin !==
-        'https://script.google.com' &&
-        !event.origin.endsWith(
-          '.googleusercontent.com'
-        )
-      ) {
-        return;
-      }
-
       const data =
         event.data || {};
 
@@ -2058,11 +2046,6 @@ function submitNamesToBackend(payload) {
       resolve(data);
     }
 
-    pendingJoin = {
-      iframe,
-      form
-    };
-
     window.addEventListener(
       'message',
       onMessage
@@ -2072,49 +2055,12 @@ function submitNamesToBackend(payload) {
   });
 }
 
-
-/*
-  O site público está realmente hospedado no GitHub.
-  Só redirecionamos as áreas privadas para o Apps Script.
-*/
-if (
-  PAGE_MODE === 'admin' ||
-  PAGE_MODE === 'adminmobile'
-) {
-  const adminUrl =
-    new URL(APP_SCRIPT_URL);
-
-  adminUrl.searchParams.set(
-    'page',
-    'adminmobile'
-  );
-
-  window.location.replace(
-    adminUrl.toString()
-  );
-} else if (PAGE_MODE === 'checkin') {
-  const checkinUrl =
-    new URL(APP_SCRIPT_URL);
-
-  checkinUrl.searchParams.set(
-    'page',
-    'checkin'
-  );
-
-  window.location.replace(
-    checkinUrl.toString()
-  );
-} else {
-  apiJsonp(
-    'config',
-    {
-      list:INITIAL_LIST_KEY
-    }
-  )
-    .then(init)
-    .catch(fatal);
-}
-
+githubGet(
+  'config',
+  { list:INITIAL_LIST_KEY }
+)
+  .then(init)
+  .catch(fatal);
 
 function init(config) {
   if (!config || !config.ok) {
@@ -2161,27 +2107,22 @@ function init(config) {
 }
 
 function refreshLiveState() {
-  apiJsonp(
+  githubGet(
     'state',
-    {
-      list:INITIAL_LIST_KEY
-    }
+    { list:INITIAL_LIST_KEY }
   )
     .then(res => {
       if (!res || !res.listState) return;
 
       if (
         currentOpen !== null &&
-        currentOpen !==
-          !!res.listState.open
+        currentOpen !== !!res.listState.open
       ) {
         location.reload();
         return;
       }
 
-      applyState(
-        res.listState
-      );
+      applyState(res.listState);
     })
     .catch(() => {});
 }
@@ -2313,12 +2254,21 @@ $('joinForm').onsubmit = e => {
 
   setStatus('Colocando os nomes na STUPID LIST...');
 
-  submitNamesToBackend({
+  githubJoin({
     listKey:INITIAL_LIST_KEY,
     names,
     clientKey:clientKey()
   })
-    .then(showSuccess)
+    .then(res => {
+      if (!res || res.ok === false) {
+        throw new Error(
+          (res && res.message) ||
+          'Não foi possível concluir.'
+        );
+      }
+
+      showSuccess(res);
+    })
     .catch(err => {
       $('submitBtn').disabled = false;
       $('submitBtn').textContent =
