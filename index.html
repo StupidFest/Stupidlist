@@ -1859,48 +1859,6 @@ function clientKey() {
   return key;
 }
 
-/*
-  O site público está realmente hospedado no GitHub.
-  Só redirecionamos as áreas privadas para o Apps Script.
-*/
-if (
-  PAGE_MODE === 'admin' ||
-  PAGE_MODE === 'adminmobile'
-) {
-  const adminUrl =
-    new URL(APP_SCRIPT_URL);
-
-  adminUrl.searchParams.set(
-    'page',
-    'adminmobile'
-  );
-
-  window.location.replace(
-    adminUrl.toString()
-  );
-} else if (PAGE_MODE === 'checkin') {
-  const checkinUrl =
-    new URL(APP_SCRIPT_URL);
-
-  checkinUrl.searchParams.set(
-    'page',
-    'checkin'
-  );
-
-  window.location.replace(
-    checkinUrl.toString()
-  );
-} else {
-  apiJsonp(
-    'config',
-    {
-      list:INITIAL_LIST_KEY
-    }
-  )
-    .then(init)
-    .catch(fatal);
-}
-
 /* =========================================================
    PONTE GITHUB -> APPS SCRIPT
    ========================================================= */
@@ -2112,6 +2070,49 @@ function submitNamesToBackend(payload) {
 
     form.submit();
   });
+}
+
+
+/*
+  O site público está realmente hospedado no GitHub.
+  Só redirecionamos as áreas privadas para o Apps Script.
+*/
+if (
+  PAGE_MODE === 'admin' ||
+  PAGE_MODE === 'adminmobile'
+) {
+  const adminUrl =
+    new URL(APP_SCRIPT_URL);
+
+  adminUrl.searchParams.set(
+    'page',
+    'adminmobile'
+  );
+
+  window.location.replace(
+    adminUrl.toString()
+  );
+} else if (PAGE_MODE === 'checkin') {
+  const checkinUrl =
+    new URL(APP_SCRIPT_URL);
+
+  checkinUrl.searchParams.set(
+    'page',
+    'checkin'
+  );
+
+  window.location.replace(
+    checkinUrl.toString()
+  );
+} else {
+  apiJsonp(
+    'config',
+    {
+      list:INITIAL_LIST_KEY
+    }
+  )
+    .then(init)
+    .catch(fatal);
 }
 
 
